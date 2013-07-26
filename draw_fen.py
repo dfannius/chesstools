@@ -3,6 +3,9 @@
 #  + option for displaying side to move
 #  + option for flipping board
 #  + clean up get_margin_img()
+#  + put all source art in script directory
+#  - move common code to separate file
+#  - move bare code at end to a function
 #  - put all source art in one file for speedup?
 #  - refactor to copy_margin()
 #  - determine correct output file automatically?
@@ -13,25 +16,22 @@ import os.path
 import win32clipboard
 import win32con
 
-REF_SQ_SIZE = 30
-REF_MARGIN = 15
+REF_SQ_SIZE = 30                # size of squares in reference art
+REF_MARGIN = 15                 # width of margin in reference art
 
 options = None
+script_dir = os.path.dirname( os.path.realpath( __file__ ) )
 
-ref_img = Image.open( "c:/dfan/.mnemosyne/images/reference.png" )
-
-# Index string is who's at the bottom followed by who's to move
-ref_imgs = [
-    ref_img,
-    Image.open( "c:/dfan/.mnemosyne/images/reference2.png" ),
-    Image.open( "c:/dfan/.mnemosyne/images/reference3.png" ),
-    Image.open( "c:/dfan/.mnemosyne/images/reference4.png" )
-]
+# 0: W at bottom, W to move (plus all pieces as specified by square_dict)
+# 1: W at bottom, B to move
+# 2: B at bottom, W to move
+# 3: B at bottom, B to move
+ref_imgs = [ Image.open( "%s/reference%d.png" % (script_dir, i) ) for i in range( 1, 5 ) ]
 
 def get_margin_img():
     return ref_imgs[2 * options.flip + options.black_to_move]
 
-# Mapping of FEN character to dark/light squares in reference.png
+# Mapping of FEN character to dark/light squares in ref_imgs[0]
 square_dict = {
     'P': ('a1', 'a2'),
     'R': ('b2', 'b1'),
@@ -64,7 +64,7 @@ def sq_to_ref_img_coords( sq ):
 
 def sq_to_pic( sq ):
     coords = sq_to_ref_img_coords( sq )
-    pic = ref_img.crop( coords )
+    pic = ref_imgs[0].crop( coords )
     return pic
 
 def add_square( img, col, row, piece ):
