@@ -67,7 +67,7 @@ def sq_to_pic( sq ):
     pic = ref_imgs[0].crop( coords )
     return pic
 
-def add_square( img, col, row, piece ):
+def add_square( img, col, row, piece, options ):
     color = square_color( col, row )
     sq_pic = sq_to_pic( square_dict[piece][color] )
     margin = REF_MARGIN if options.show_side else 0
@@ -76,23 +76,23 @@ def add_square( img, col, row, piece ):
     img.paste( sq_pic, (REF_SQ_SIZE * display_col + 1 + margin,
                         REF_SQ_SIZE * display_row + 1) )
 
-def maybe_override_side( fen ):
+def maybe_override_side( fen, options ):
     if options.black_to_move: return
     space_pos = fen.find( ' ' )
     if fen[space_pos+1] == 'b':
         options.black_to_move = True
 
-def fen_to_image( fen ):
+def fen_to_image( fen, options ):
     SIZE = 8 * REF_SQ_SIZE + 2 + (REF_MARGIN if options.show_side else 0)
     img = Image.new( "RGB", (SIZE, SIZE) )
     col = 0
     row = 0
-    maybe_override_side( fen )
+    maybe_override_side( fen, options )
     for c in fen:
         if c.isdigit():
             d = int( c )
             while d != 0:
-                add_square( img, col, row, ' ')
+                add_square( img, col, row, ' ', options )
                 col += 1
                 d -= 1
         elif c == '/':
@@ -101,8 +101,21 @@ def fen_to_image( fen ):
         elif c == ' ':
             break
         else:
-            add_square( img, col, row, c )
+            add_square( img, col, row, c, options )
             col += 1
+    if options.show_side:
+        img = add_margin( img, options )
+    return img
+
+def add_margin( img, options ):
+    MARGIN_END = 8 * REF_SQ_SIZE + REF_MARGIN + 1
+    margin_img = get_margin_img()
+    left_margin_coords = (1, 1, REF_MARGIN + 1, MARGIN_END)
+    left_margin = margin_img.crop( left_margin_coords )
+    img.paste( left_margin, left_margin_coords )
+    bottom_margin_coords = (1, MARGIN_END - REF_MARGIN, MARGIN_END, MARGIN_END)
+    bottom_margin = margin_img.crop( bottom_margin_coords )
+    img.paste( bottom_margin, bottom_margin_coords )
     return img
 
 def clipboard_contents():
@@ -126,23 +139,13 @@ parser.add_argument( "-f",
                      "--flip",
                      help="Flip the board so Black is at the bottom",
                      action="store_true" )
-options = parser.parse_args()
+global_options = parser.parse_args()
 
 str = clipboard_contents()
 print "Using %s" % str
-out_img = fen_to_image( str )
-if options.show_side:
-    MARGIN_END = 8 * REF_SQ_SIZE + REF_MARGIN + 1
-    margin_img = get_margin_img()
-    left_margin_coords = (1, 1, REF_MARGIN + 1, MARGIN_END)
-    left_margin = margin_img.crop( left_margin_coords )
-    out_img.paste( left_margin, left_margin_coords )
-
-    bottom_margin_coords = (1, MARGIN_END - REF_MARGIN, MARGIN_END, MARGIN_END)
-    bottom_margin = margin_img.crop( bottom_margin_coords )
-    out_img.paste( bottom_margin, bottom_margin_coords )
+out_img = fen_to_image( str, global_options )
                     
-output_name = "%s.png" % options.output_name
+output_name = "%s.png" % global_options.output_name
 SAFETY_FIRST = True
 if SAFETY_FIRST and (os.path.exists( output_name )):
     print "%s already exists" % output_name
