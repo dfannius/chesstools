@@ -56,8 +56,12 @@ class Diagram:
                 self.flipped = flipped
                 self.black_to_move = black_to_move
         else:
-            self.flipped = False
-            self.black_to_move = False
+            self.deduce_state()
+
+    # Figure out whether the board is flipped.
+    def deduce_state( self ):
+        self.flipped = False
+        self.black_to_move = False
 
     def left_margin_pic( self ):
         MARGIN_END = 8 * REF_SQ_SIZE + REF_MARGIN + 1
@@ -169,8 +173,7 @@ def add_margins( img, options ):
     img.paste( bottom_margin, bottom_margin_coords )
     return img
 
-def image_to_fen( img ):
-    diag = Diagram( img )
+def diag_to_fen( diag ):
     fen_str = ""
     num_spaces = 0
     for row in range( 8 ):
@@ -194,3 +197,6 @@ def image_to_fen( img ):
     fen_str += ("b" if diag.black_to_move else "w")
     fen_str += " KQkq - 0 1"    # I don't really care about this
     return fen_str
+
+def image_to_fen( img ):
+    return diag_to_fen( Diagram( img ) )

@@ -8,16 +8,28 @@
  - [X] Diagram
    - [X] understand if image is upside down
    - [X] understand whose side it is to move
- - [ ] put all source art in one file for speedup?
+ - [ ] chessdiag.py
+   - [ ] move diag_to_fen into Diagram
+   - [ ] don't depend on passing an argparse options variable around
+   - [ ] put all source art in one file for speedup?
+   - [ ] separate out art for left margin, bottom margin, to-move indicator
  - [-] diag2fen.py
    - [X] initial functionality
+   - [ ] optionally copy to clipboard
    - [ ] deduce board facing
      - [ ] average vertical position of pieces?
      - [ ] vertical position of kings?
      - [ ] pawns on 2nd vs 7th rank?
      - [ ] be more confident with more pieces on the board
      - [ ] interactive?
+   - [ ] option to overwrite non-margin diagram with margin diagram
  - [ ] draw_fen.py
    - [ ] move bare code at end of draw_fen to a function
    - [ ] check for duplicates
-   - [ ] determine correct output file automatically?
+   - [ ] determine correct output filename automatically?
+ - [-] diag_add_margin.py
+   - [X] initial functionality
+   - [ ] parse db.txt into hash
+   - [ ] batch
+   - [ ] clean up code
+   - [ ] replace file, keep backup

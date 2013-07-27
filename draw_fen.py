@@ -10,7 +10,8 @@ def clipboard_contents():
     win32clipboard.CloseClipboard()
     return text
 
-parser = argparse.ArgumentParser( description="Output a chessboard graphic corresponding to the FEN string currently occupying the clipboard." )
+parser = argparse.ArgumentParser( description="Output a chessboard graphic corresponding to "
+                                  "the FEN string currently occupying the clipboard." )
 parser.add_argument( "output_name",
                      help="Base filename to output to (.png will be appended)")
 parser.add_argument( "-b",
