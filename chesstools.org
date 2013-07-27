@@ -1,0 +1,23 @@
+* To do
+ - [X] read from clipboard
+ - [X] option for displaying side to move
+ - [X] option for flipping board
+ - [X] clean up get_margin_img()
+ - [X] put all source art in script directory
+ - [X] move common code to separate file
+ - [X] Diagram
+   - [X] understand if image is upside down
+   - [X] understand whose side it is to move
+ - [ ] put all source art in one file for speedup?
+ - [-] diag2fen.py
+   - [X] initial functionality
+   - [ ] deduce board facing
+     - [ ] average vertical position of pieces?
+     - [ ] vertical position of kings?
+     - [ ] pawns on 2nd vs 7th rank?
+     - [ ] be more confident with more pieces on the board
+     - [ ] interactive?
+ - [ ] draw_fen.py
+   - [ ] move bare code at end of draw_fen to a function
+   - [ ] check for duplicates
+   - [ ] determine correct output file automatically?

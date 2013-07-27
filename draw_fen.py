@@ -1,15 +1,3 @@
-# To do:
-#  + read from clipboard
-#  + option for displaying side to move
-#  + option for flipping board
-#  + clean up get_margin_img()
-#  + put all source art in script directory
-#  - move common code to separate file
-#  - move bare code at end to a function
-#  - put all source art in one file for speedup?
-#  - refactor to copy_margin()
-#  - determine correct output file automatically?
-
 import argparse
 import chessdiag
 import os.path
