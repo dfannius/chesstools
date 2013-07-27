@@ -6,16 +6,54 @@ REF_MARGIN = 15                 # width of margin in reference art
 
 script_dir = os.path.dirname( os.path.realpath( __file__ ) )
 
+# Does this image have a margin?
+def image_has_margin( img ):
+    (width, height) = img.size
+    if width == height:
+        if width == 8 * REF_SQ_SIZE + 2:
+            return False
+        elif width == 8 * REF_SQ_SIZE + 2 + REF_MARGIN:
+            return True
+    raise Exception( "Bad image dimensions %dx%d" % (width, height) )
+
+class Diagram:
+
+    def __init__( self, img ):
+        self.img = img
+        self.has_margin = image_has_margin( img )
+        self.margin = REF_MARGIN * self.has_margin
+
+    def coords_to_bounds( self, row, col ):
+        return ( (REF_SQ_SIZE * col + self.margin + 1,
+                  REF_SQ_SIZE * row + 1,
+                  REF_SQ_SIZE * (col + 1) + self.margin + 1,
+                  REF_SQ_SIZE * (row + 1) + 1) )
+
+    # Takes a square like 'a8' and turns it into a 4-tuple suitable for
+    # sending to PIL's Image.crop function
+    def sq_to_bounds( self, sq ):
+        row = ord( '8' ) - ord( sq[1] ) # 0 to 7 top to bottom
+        col = ord( sq[0] ) - ord( 'a' ) # 0 to 7 left to right
+        return self.coords_to_bounds( row, col )
+        
+    def coords_to_pic( self, row, col ):
+        return self.img.crop( self.coords_to_bounds( row, col ) )
+
+    def sq_to_pic( self, sq ):
+        return self.img.crop( self.sq_to_bounds( sq ) )
+
 # 0: W at bottom, W to move (plus all pieces as specified by square_dict)
 # 1: W at bottom, B to move
 # 2: B at bottom, W to move
 # 3: B at bottom, B to move
-ref_imgs = [ Image.open( "%s/reference%d.png" % (script_dir, i) ) for i in range( 1, 5 ) ]
+ref_diagrams = [ Diagram( Image.open( "%s/reference%d.png" % (script_dir, i) ) ) for i in range( 1, 5 ) ]
 
-def get_margin_img():
-    return ref_imgs[2 * options.flip + options.black_to_move]
+def get_margin_img( options ):
+    print "flip", options.flip, "black", options.black_to_move
+    print ref_diagrams
+    return ref_diagrams[2 * options.flip + options.black_to_move].img
 
-# Mapping of FEN character to dark/light squares in ref_imgs[0]
+# Mapping of FEN character to dark/light squares in ref_diagrams[0]
 square_dict = {
     'P': ('a1', 'a2'),
     'R': ('b2', 'b1'),
@@ -36,24 +74,9 @@ square_dict = {
 def square_color( col, row ):
     return (col + row + 1) % 2
 
-# Takes a square like 'a8' and turns it into a 4-tuple suitable for
-# sending to PIL's Image.crop function
-def sq_to_ref_img_coords( sq ):
-    col = ord( sq[0] ) - ord( 'a' ) # 0 to 7 left to right
-    row = ord( '8' ) - ord( sq[1] ) # 0 to 7 top to bottom
-    return( (REF_SQ_SIZE * col + REF_MARGIN + 1,
-             REF_SQ_SIZE * row + 1,
-             REF_SQ_SIZE * (col + 1) + REF_MARGIN + 1,
-             REF_SQ_SIZE * (row + 1) + 1) )
-
-def sq_to_pic( sq ):
-    coords = sq_to_ref_img_coords( sq )
-    pic = ref_imgs[0].crop( coords )
-    return pic
-
 def add_square( img, col, row, piece, options ):
     color = square_color( col, row )
-    sq_pic = sq_to_pic( square_dict[piece][color] )
+    sq_pic = ref_diagrams[0].sq_to_pic( square_dict[piece][color] )
     margin = REF_MARGIN if options.show_side else 0
     display_col = 7 - col if options.flip else col
     display_row = 7 - row if options.flip else row
@@ -66,9 +89,14 @@ def maybe_override_side( fen, options ):
     if fen[space_pos+1] == 'b':
         options.black_to_move = True
 
+# How tall and wide is the image? show_margin is whether the margin is
+# displayed.
+def image_size( show_margin ):
+    return 8 * REF_SQ_SIZE + 2 + (REF_MARGIN if show_margin else 0)
+
 def fen_to_image( fen, options ):
-    SIZE = 8 * REF_SQ_SIZE + 2 + (REF_MARGIN if options.show_side else 0)
-    img = Image.new( "RGB", (SIZE, SIZE) )
+    size = image_size( options.show_side )
+    img = Image.new( "RGB", (size, size) )
     col = 0
     row = 0
     maybe_override_side( fen, options )
@@ -93,7 +121,7 @@ def fen_to_image( fen, options ):
 
 def add_margins( img, options ):
     MARGIN_END = 8 * REF_SQ_SIZE + REF_MARGIN + 1
-    margin_img = get_margin_img()
+    margin_img = get_margin_img( options )
     left_margin_coords = (1, 1, REF_MARGIN + 1, MARGIN_END)
     left_margin = margin_img.crop( left_margin_coords )
     img.paste( left_margin, left_margin_coords )
@@ -102,3 +130,28 @@ def add_margins( img, options ):
     img.paste( bottom_margin, bottom_margin_coords )
     return img
 
+def sq_to_char( img, row, col, has_margin ):
+    pic = sq_to_pic( img, row, col )
+
+def image_to_fen( img ):
+    fen_str = ""
+    has_margin = image_has_margin( img )
+    num_spaces = 0
+    for row in range( 8 ):
+        for col in range( 8 ):
+            c = sq_to_char( img, row, col, has_margin )
+            if c == " ":
+                num_spaces += 1
+            else:
+                if num_spaces > 0:
+                    fen_str += str( num_spaces )
+                    num_spaces = 0
+                fen_str += c
+        if num_spaces > 0:
+            fen_str += str( num_spaces )
+            num_spaces = 0
+        if col < 7:
+            fen_str += "/"
+    if num_spaces > 0:
+        fen_str += str( num_spaces )
+    fen_str += " "
