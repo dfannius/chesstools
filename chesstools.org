@@ -29,7 +29,9 @@
    - [ ] determine correct output filename automatically?
  - [-] diag_add_margin.py
    - [X] initial functionality
-   - [ ] parse db.txt into hash
-   - [ ] batch
+   - [X] parse db.txt into hash
+   - [X] batch
+   - [X] replace file
    - [ ] clean up code
-   - [ ] replace file, keep backup
+   - [ ] optionally back up file
+   - [ ] input_dir and input_file should be mutually exclusive
