@@ -24,7 +24,7 @@ str_to_side = {
     'White': 'White'
 }
 
-to_play_re = re.compile( r"(\w+) to play" )
+to_play_re = re.compile( r"(\w+) to (play|move)" )
 img_url_re = re.compile( r'<img src="(.*?)">' )
 
 # Generate mapping of image name to its line from the database file
