@@ -15,7 +15,7 @@
    - [ ] separate out art for left margin, bottom margin, to-move indicator
  - [-] diag2fen.py
    - [X] initial functionality
-   - [ ] optionally copy to clipboard
+   - [X] copy to clipboard
    - [ ] deduce board facing
      - [ ] average vertical position of pieces?
      - [ ] vertical position of kings?
@@ -23,9 +23,10 @@
      - [ ] be more confident with more pieces on the board
      - [ ] interactive?
    - [ ] option to overwrite non-margin diagram with margin diagram
- - [ ] draw_fen.py
+ - [-] fen2diag.py
+   - [X] override option
+   - [X] check for duplicates
    - [ ] move bare code at end of draw_fen to a function
-   - [ ] check for duplicates
    - [ ] determine correct output filename automatically?
  - [-] diag_add_margin.py
    - [X] initial functionality
@@ -35,3 +36,4 @@
    - [ ] clean up code
    - [ ] optionally back up file
    - [ ] input_dir and input_file should be mutually exclusive
+ - [ ] tool to split pgn file by time control

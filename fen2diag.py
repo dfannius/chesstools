@@ -1,5 +1,6 @@
 import argparse
 import chessdiag
+import filecmp
 import os.path
 import win32clipboard
 import win32con
@@ -36,8 +37,13 @@ str = clipboard_contents()
 print "Using %s" % str
 out_img = chessdiag.fen_to_image( str, global_options )
                     
+ref_filename = ".last.png"
 output_name = "%s.png" % global_options.output_name
 if not global_options.override and (os.path.exists( output_name )):
     print "%s already exists" % output_name
 else:
     out_img.save( output_name )
+    if os.path.exists( ref_filename ) and filecmp.cmp( output_name, ref_filename ):
+        print "Saved duplicate file"
+    else:
+        out_img.save (ref_filename )
