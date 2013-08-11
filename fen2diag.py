@@ -26,6 +26,10 @@ parser.add_argument( "-f",
                      "--flip",
                      help="Flip the board so Black is at the bottom",
                      action="store_true" )
+parser.add_argument( "-o",
+                     "--override",
+                     help="Allow writing over files or creating duplicate diagrams",
+                     action="store_true" )
 global_options = parser.parse_args()
 
 str = clipboard_contents()
@@ -33,8 +37,7 @@ print "Using %s" % str
 out_img = chessdiag.fen_to_image( str, global_options )
                     
 output_name = "%s.png" % global_options.output_name
-SAFETY_FIRST = True
-if SAFETY_FIRST and (os.path.exists( output_name )):
+if not global_options.override and (os.path.exists( output_name )):
     print "%s already exists" % output_name
 else:
     out_img.save( output_name )
