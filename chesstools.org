@@ -36,4 +36,4 @@
    - [ ] clean up code
    - [ ] optionally back up file
    - [ ] input_dir and input_file should be mutually exclusive
- - [ ] tool to split pgn file by time control
+ - [X] tool to split pgn file by time control
