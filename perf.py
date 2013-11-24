@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import re
 import urllib2
 import sys
@@ -45,7 +47,7 @@ def accurate_perf_rating( results ):
         iterations += 1
     return test
 
-def xtbl_to_date( xtbl ):
+def xtbl_to_str( xtbl ):
     return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
 
 class Result():
@@ -148,6 +150,7 @@ def parse_year_stats( id, year ):
                                            round( naive_perf ),
                                            round( accurate_perf ),
                                            len( results ))
+        
 
 name_re = re.compile( "<b>\d+: ([^<]+)" )
 def name_from_id( id ):
@@ -169,19 +172,23 @@ def run_by_window( id ):
     for y in range( 1994, 2014 ):
         results.extend( year_stats( id, y ) )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
-    print "      Date  Fast  Acc Result"
-    for x in range( 1, len( results ) ):
+#   print "      Date  Fast  Acc Result"
+    ratings = []
+    for x in range( 20, len( results ) ):
         begin = max( 0, x - window_size )
         r = results[begin:x]
         naive_perf = sum( r.val() for r in r ) / len( r )
         accurate_perf = accurate_perf_rating( r )
-        print "%s: %4d %4d %s %d" % (xtbl_to_date( r[-1].xtbl ),
-                                     round( naive_perf ),
-                                     round( accurate_perf ),
-                                     r[-1].result,
-                                     r[-1].opp_rating)
+        ratings.append( accurate_perf )
+#        print "%s: %4d %4d %s %d" % (xtbl_to_str( r[-1].xtbl ),
+#                                     round( naive_perf ),
+#                                     round( accurate_perf ),
+#                                     r[-1].result,
+#                                     r[-1].opp_rating)
+    plt.plot( ratings )
+    plt.savefig( "%s.png" % id )
 
 def run():
-    run_by_year( sys.argv[1] )
+    run_by_window( sys.argv[1] )
 
 run()
