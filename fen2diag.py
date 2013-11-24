@@ -9,6 +9,9 @@ def clipboard_contents():
     win32clipboard.OpenClipboard()
     text = win32clipboard.GetClipboardData( win32con.CF_TEXT )
     win32clipboard.CloseClipboard()
+    null_idx = text.find("\0")  # Some apps return garbage after the null
+    if null_idx != -1:
+        text = text[:null_idx]
     return text
 
 parser = argparse.ArgumentParser( description="Output a chessboard graphic corresponding to "
