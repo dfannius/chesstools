@@ -184,31 +184,4 @@ def run_by_window( id ):
 def run():
     run_by_year( sys.argv[1] )
 
-def dfan_perf():
-    results = [Result( x, y ) for (x, y) in
-               (1852, "W"),
-               (1980, "W"),
-               (2212, "L"),
-               (1764, "W"),
-               (2565, "L"),
-               (1323, "W"),
-               (1977, "D"),
-               (2572, "W"),
-               (1416, "W"),
-               (2212, "D"),
-               (2009, "W"),
-               (1744, "W"),
-               (1479, "W"),
-               (2098, "W"),
-               (2220, "L"),
-               (1982, "W"),
-               (2117, "D"),
-               (2067, "D"),
-               (2007, "D"),
-               (1810, "D"),
-               (2000, "D"),
-               (1781, "W")
-               ]
-    print int( round( accurate_perf_rating( results ) ) )
-
 run()
