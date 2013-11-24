@@ -1,8 +1,8 @@
-import cairo
 import re
 import urllib2
 import sys
 from HTMLParser import HTMLParser
+from operator import attrgetter
 
 result_to_value = { "L": 0.0, "S": 0.0,
                     "D": 0.5, "R": 0.5,
@@ -45,6 +45,9 @@ def accurate_perf_rating( results ):
         iterations += 1
     return test
 
+def xtbl_to_date( xtbl ):
+    return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
+
 class Result():
     def __init__( self, opp_rating, result, xtbl, rd ):
         self.opp_rating = opp_rating
@@ -52,7 +55,7 @@ class Result():
         self.xtbl = xtbl
         self.rd = rd
     def __repr__( self ):
-        return "%d %s" % (self.opp_rating, self.result)
+        return "%d %s (%s:%d)" % (self.opp_rating, self.result, self.xtbl, self.rd)
     def val( self ):
         return self.opp_rating + (result_to_value[ self.result ] - 0.5) * 800
 
@@ -129,11 +132,15 @@ class ResultsParser( HTMLParser ):
 def year_stats_page_url( id, year ):
     return "http://main.uschess.org/datapage/gamestats.php?memid=%s&ptype=Y&rs=R&dkey=%d&drill=Y" % (id, year )
 
-def parse_year_stats( id, year ):
+def year_stats( id, year ):
     u = urllib2.urlopen( year_stats_page_url( id, year ) )
-    results = []
-    parser = ResultsParser( results )
+    parser = ResultsParser( [] )
     parser.feed( u.read() )
+    return parser.results
+
+def parse_year_stats( id, year ):
+    results = year_stats( id, year )
+    print results
     if len( results ) > 0:
         naive_perf = sum( r.val() for r in results ) / len( results )
         accurate_perf = accurate_perf_rating( results )
@@ -151,11 +158,31 @@ def name_from_id( id ):
             return m.group( 1 )
     return None
 
-def run():
-    id = sys.argv[1]
+def run_by_year( id ):
     print "Year  Fast  Acc %s" % (name_from_id( id ))
     for y in range( 1994, 1995 ):
         parse_year_stats( id, y )
+
+def run_by_window( id ):
+    results = []
+    window_size = 20
+    for y in range( 1994, 2014 ):
+        results.extend( year_stats( id, y ) )
+    results.sort( key=attrgetter( "xtbl", "rd" ) )
+    print "      Date  Fast  Acc Result"
+    for x in range( 1, len( results ) ):
+        begin = max( 0, x - window_size )
+        r = results[begin:x]
+        naive_perf = sum( r.val() for r in r ) / len( r )
+        accurate_perf = accurate_perf_rating( r )
+        print "%s: %4d %4d %s %d" % (xtbl_to_date( r[-1].xtbl ),
+                                     round( naive_perf ),
+                                     round( accurate_perf ),
+                                     r[-1].result,
+                                     r[-1].opp_rating)
+
+def run():
+    run_by_year( sys.argv[1] )
 
 def dfan_perf():
     results = [Result( x, y ) for (x, y) in
