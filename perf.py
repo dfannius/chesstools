@@ -1,3 +1,4 @@
+import cairo
 import re
 import urllib2
 import sys
@@ -45,34 +46,85 @@ def accurate_perf_rating( results ):
     return test
 
 class Result():
-    def __init__( self, opp_rating, result ):
+    def __init__( self, opp_rating, result, xtbl, rd ):
         self.opp_rating = opp_rating
         self.result = result
+        self.xtbl = xtbl
+        self.rd = rd
     def __repr__( self ):
         return "%d %s" % (self.opp_rating, self.result)
     def val( self ):
         return self.opp_rating + (result_to_value[ self.result ] - 0.5) * 800
 
+def alist_find( alist, key ):
+    for (k,v) in alist:
+        if k == key: return v
+    return None
+
 READ_RATING = 0
 READ_RESULT = 1
-rating_re = re.compile( "=> (\d+)" )
+rating_re = re.compile( r"=> (\d+)" )
+xtbl_re = re.compile( r"http://msa.uschess.org/XtblMain.php\?(\d+)" )
 class ResultsParser( HTMLParser ):
     def __init__( self, results ):
         self.state = READ_RATING
         self.rating = 0
         self.results = results
+        self.indent = 0
+        self.reading_data = False
+        self.cur_tag = None
+        self.cur_col = 0
+        self.xtbl = None
+        self.rd = 0
+        self.rating = 0
+        self.result = None
+        self.in_td = 0
         HTMLParser.__init__( self )
 
-    def handle_data( self, data ):
-        if self.state == READ_RATING:
-            m = rating_re.search( data )
-            if m:
-                self.rating = int( m.group( 1 ) )
-                self.state = READ_RESULT
-        elif self.state == READ_RESULT:
-            self.state = READ_RATING
-            self.results.append( Result( self.rating, data[0] ) )
+    def handle_starttag( self, tag, attrs ):
+#       print " " * self.indent, "start tag:", tag
+#       print " " * self.indent, "attrs:", attrs
+        self.indent += 2
+        self.cur_tag = tag
+        if tag == "tr":
+            self.cur_col = -1
+        if tag == "td":
+            self.cur_col += 1
+            self.in_td += 1
+        if tag == "a":
+            if self.cur_col == 0:
+                xtbl_link = alist_find( attrs, "href" )
+                m = xtbl_re.search( xtbl_link )
+                if m:
+                    self.xtbl = m.group( 1 )
+
+    def handle_endtag( self, tag ):
+        self.indent -= 2
+#       print " " * self.indent, "end tag:", tag
+        if tag == "td":
+            self.in_td -= 1
+        if tag == "tr" and self.result:
+            self.results.append( Result( self.rating, self.result, self.xtbl, self.rd ) )
+            self.xtbl = None
+            self.rd = 0
             self.rating = 0
+            self.result = None
+
+    def handle_data( self, data ):
+#       print " " * self.indent, "data:", data
+        if not self.reading_data and self.cur_tag == "th" and data == "Event Name":
+            self.reading_data = True
+
+        if self.reading_data:
+            if self.in_td > 0:
+                if self.cur_col == 2:
+                    self.rd = int( data )
+                elif self.cur_col == 6:
+                    m = rating_re.search( data )
+                    if m:
+                        self.rating = int( m.group( 1 ) )
+                elif self.cur_col == 7:
+                    self.result = data[0]
 
 def year_stats_page_url( id, year ):
     return "http://main.uschess.org/datapage/gamestats.php?memid=%s&ptype=Y&rs=R&dkey=%d&drill=Y" % (id, year )
@@ -85,7 +137,10 @@ def parse_year_stats( id, year ):
     if len( results ) > 0:
         naive_perf = sum( r.val() for r in results ) / len( results )
         accurate_perf = accurate_perf_rating( results )
-        print "%d: %4d %4d (%3d games)" % (year, round( naive_perf ), round( accurate_perf ), len( results ))
+        print "%d: %4d %4d (%3d games)" % (year,
+                                           round( naive_perf ),
+                                           round( accurate_perf ),
+                                           len( results ))
 
 name_re = re.compile( "<b>\d+: ([^<]+)" )
 def name_from_id( id ):
@@ -99,7 +154,7 @@ def name_from_id( id ):
 def run():
     id = sys.argv[1]
     print "Year  Fast  Acc %s" % (name_from_id( id ))
-    for y in range( 1994, 2014 ):
+    for y in range( 1994, 1995 ):
         parse_year_stats( id, y )
 
 def dfan_perf():
@@ -130,8 +185,3 @@ def dfan_perf():
     print int( round( accurate_perf_rating( results ) ) )
 
 run()
-
-
-
-
-
