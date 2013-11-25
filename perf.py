@@ -2,9 +2,12 @@
 # + Graph USCF rating as well
 # + cur_tag should really be a stack
 # + Refactor TournamentResultsParser and YearResultsParser
-# - Cache rating information
+# + Cache rating information
 # - Print date marks on x axis
+# - Window size as command-line parameter
+# - Legend
 
+import cPickle as pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import re
@@ -230,18 +233,42 @@ def xtbls_to_ratings( xtbls ):
         vals.append( (v, k ) )
     return sorted( vals )
 
-def run_by_window( id ):
-    print "Getting tournament history..."
-    tnmt_results = get_tournament_history( id )
-    tnmt_map = {}
-    for r in tnmt_results:
-        tnmt_map[r.xtbl] = r.rating
-    results = []
-    window_size = 20
+def pickle_file( id ):
+    return "%s.pickle" % id
+
+def parse_results( id ):
     print "Getting yearly stats..."
+    results = []
     for y in range( 1994, 2014 ):
         results.extend( year_stats( id, y ) )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
+    print "Getting tournament history..."
+    tnmt_results = get_tournament_history( id )
+    return (results, tnmt_results)
+
+def read_results( id ):
+    pf = pickle_file( id )
+    try:
+        f = open( pf, "rb" )
+        print "Reading from", pf
+        results = pickle.load( f )
+        tnmt_results = pickle.load( f )
+    except IOError:
+        (results, tnmt_results) = parse_results( id )
+        print "Writing to", pf
+        f = open( pf, "wb" )
+        pickle.dump( results, f )
+        pickle.dump( tnmt_results, f )
+    return (results, tnmt_results)
+
+def run_by_window( id ):
+    window_size = 20
+
+    (results, tnmt_results) = read_results( id )
+    tnmt_map = {}
+    for r in tnmt_results:
+        tnmt_map[r.xtbl] = r.rating
+
     ratings = []
     tnmt_ratings = []
     xtbls = []
