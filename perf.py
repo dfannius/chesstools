@@ -1,9 +1,9 @@
 # TODO
 # + Graph USCF rating as well
+# + cur_tag should really be a stack
+# + Refactor TournamentResultsParser and YearResultsParser
 # - Cache rating information
 # - Print date marks on x axis
-# - Refactor TournamentResultsParser and YearResultsParser
-# - cur_tag should really be a stack
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -85,24 +85,42 @@ rating_re = re.compile( r"=>\s+(\d+)", re.MULTILINE )
 xtbl_re = re.compile( r"XtblMain.php\?([\d]+)" )
 tnmt_hst_re = re.compile( r"MbrDtlTnmtHst.php\?[\d]+\.[\d]+" )
 
-class TournamentResultsParser( HTMLParser ):
+class TableParser( HTMLParser ):
     def __init__( self ):
-        self.reading_data = False
+        HTMLParser.__init__( self )
         self.tag_stack = []
         self.cur_col = 0
         self.in_td = 0
-        self.xtbl = None
-        self.rating = 0
-        self.results = []
-        HTMLParser.__init__( self )
 
     def handle_starttag( self, tag, attrs ):
-        self.tag_stack += tag
+        self.tag_stack.append( tag )
         if tag == "tr":
             self.cur_col = -1
         if tag == "td":
             self.cur_col += 1
             self.in_td += 1
+
+    def handle_endtag( self, tag ):
+        self.tag_stack = self.tag_stack[:-1]
+        if tag == "td":
+            self.in_td -= 1
+
+    def cur_tag( self ):
+        if len( self.tag_stack ) == 0:
+            return None
+        else:
+            return self.tag_stack[-1]
+
+class TournamentResultsParser( TableParser ):
+    def __init__( self ):
+        TableParser.__init__( self )
+        self.reading_data = False
+        self.xtbl = None
+        self.rating = 0
+        self.results = []
+
+    def handle_starttag( self, tag, attrs ):
+        TableParser.handle_starttag( self, tag, attrs )
         if tag == "a":
             if self.cur_col == 1:
                 xtbl_link = alist_find( attrs, "href" )
@@ -111,19 +129,11 @@ class TournamentResultsParser( HTMLParser ):
                     self.xtbl = m.group( 1 )
 
     def handle_endtag( self, tag ):
-        self.tag_stack = self.tag_stack[:-1]
-        if tag == "td":
-            self.in_td -= 1
+        TableParser.handle_endtag( self, tag )
         if tag == "tr" and self.xtbl and self.rating != 0:
             self.results.append( TournamentResult( self.xtbl, self.rating ) )
             self.xtbl = None
             self.rating = 0
-
-    def cur_tag( self ):
-        if len( self.tag_stack ) == 0:
-            return None
-        else:
-            return self.tag_stack[-1]
 
     def handle_data( self, data ):
         if self.in_td > 0:
@@ -131,31 +141,19 @@ class TournamentResultsParser( HTMLParser ):
                 m = re.match( "\d+", data )
                 self.rating = int( m.group( 0 ) )
 
-class YearResultsParser( HTMLParser ):
+class YearResultsParser( TableParser ):
     def __init__( self ):
+        TableParser.__init__( self )
         self.rating = 0
         self.results = []
-        self.indent = 0
         self.reading_data = False
-        self.cur_tag = None
-        self.cur_col = 0
         self.xtbl = None
         self.rd = 0
         self.rating = 0
         self.result = None
-        self.in_td = 0
-        HTMLParser.__init__( self )
 
     def handle_starttag( self, tag, attrs ):
-#       print " " * self.indent, "start tag:", tag
-#       print " " * self.indent, "attrs:", attrs
-        self.indent += 2
-        self.cur_tag = tag
-        if tag == "tr":
-            self.cur_col = -1
-        if tag == "td":
-            self.cur_col += 1
-            self.in_td += 1
+        TableParser.handle_starttag( self, tag, attrs )
         if tag == "a":
             if self.cur_col == 0:
                 xtbl_link = alist_find( attrs, "href" )
@@ -164,10 +162,7 @@ class YearResultsParser( HTMLParser ):
                     self.xtbl = m.group( 1 )
 
     def handle_endtag( self, tag ):
-        self.indent -= 2
-#       print " " * self.indent, "end tag:", tag
-        if tag == "td":
-            self.in_td -= 1
+        TableParser.handle_endtag( self, tag )
         if tag == "tr" and self.result:
             self.results.append( Result( self.rating, self.result, self.xtbl, self.rd ) )
             self.xtbl = None
@@ -176,8 +171,7 @@ class YearResultsParser( HTMLParser ):
             self.result = None
 
     def handle_data( self, data ):
-#       print " " * self.indent, "data:", data
-        if not self.reading_data and self.cur_tag == "th" and data == "Event Name":
+        if not self.reading_data and self.cur_tag() == "th" and data == "Event Name":
             self.reading_data = True
 
         if self.reading_data:
@@ -205,7 +199,6 @@ def year_stats( id, year ):
 
 def parse_year_stats( id, year ):
     results = year_stats( id, year )
-    print results
     if len( results ) > 0:
         naive_perf = sum( r.val() for r in results ) / len( results )
         accurate_perf = accurate_perf_rating( results )
@@ -213,7 +206,6 @@ def parse_year_stats( id, year ):
                                            round( naive_perf ),
                                            round( accurate_perf ),
                                            len( results ))
-        
 
 name_re = re.compile( "<b>\d+: ([^<]+)" )
 def name_from_id( id ):
@@ -245,12 +237,11 @@ def run_by_window( id ):
     for r in tnmt_results:
         tnmt_map[r.xtbl] = r.rating
     results = []
-    window_size = 40
+    window_size = 20
     print "Getting yearly stats..."
     for y in range( 1994, 2014 ):
         results.extend( year_stats( id, y ) )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
-#   print "      Date  Fast  Acc Result"
     ratings = []
     tnmt_ratings = []
     xtbls = []
@@ -267,6 +258,7 @@ def run_by_window( id ):
 #                                     round( accurate_perf ),
 #                                     r[-1].result,
 #                                     r[-1].opp_rating)
+
     tnmt_ratings = xtbls_to_ratings( xtbls )
     tnmt_indices = [i for (i,x) in tnmt_ratings]
     tnmt_ratings = [tnmt_map[x] for (i,x) in tnmt_ratings]
