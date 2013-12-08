@@ -3,7 +3,9 @@
 # + cur_tag should really be a stack
 # + Refactor TournamentResultsParser and YearResultsParser
 # + Cache rating information
-# - Print date marks on x axis
+# + Put files in a separate directory
+# + Print name
+# + Print date marks on x axis
 # - Window size as command-line parameter
 # - Legend
 
@@ -66,6 +68,8 @@ class TournamentResult():
         self.rating = rating
     def __repr__( self ):
         return "%s %d" % (self.xtbl, self.rating)
+    def year( self ):
+        return int( self.xtbl[0:4] )
 
 class Result():
     def __init__( self, opp_rating, result, xtbl, rd ):
@@ -77,6 +81,8 @@ class Result():
         return "%d %s (%s:%d)" % (self.opp_rating, self.result, self.xtbl, self.rd)
     def val( self ):
         return self.opp_rating + (result_to_value[ self.result ] - 0.5) * 800
+    def year( self ):
+        return int( self.xtbl[0:4] )
 
 def alist_find( alist, key ):
     for (k,v) in alist:
@@ -234,7 +240,7 @@ def xtbls_to_ratings( xtbls ):
     return sorted( vals )
 
 def pickle_file( id ):
-    return "%s.pickle" % id
+    return "out/%s.pickle" % id
 
 def parse_results( id ):
     print "Getting yearly stats..."
@@ -250,16 +256,24 @@ def read_results( id ):
     pf = pickle_file( id )
     try:
         f = open( pf, "rb" )
-        print "Reading from", pf
         results = pickle.load( f )
         tnmt_results = pickle.load( f )
     except IOError:
         (results, tnmt_results) = parse_results( id )
-        print "Writing to", pf
         f = open( pf, "wb" )
         pickle.dump( results, f )
         pickle.dump( tnmt_results, f )
     return (results, tnmt_results)
+
+def year_change_indices( results ):
+    cur_year = 0
+    ans = []
+    for (i, result) in enumerate( results ):
+        y = result.year()
+        if (y != cur_year):
+            ans.append( (i, y) )
+        cur_year = y
+    return ans
 
 def run_by_window( id ):
     window_size = 20
@@ -291,7 +305,12 @@ def run_by_window( id ):
     tnmt_ratings = [tnmt_map[x] for (i,x) in tnmt_ratings]
     plt.plot( range( len( ratings ) ), ratings )
     plt.plot( tnmt_indices, tnmt_ratings )
-    plt.savefig( "%s.png" % id )
+    plt.title( name_from_id( id ) + "\n" )
+    year_changes = year_change_indices( results )
+    plt.xlim( 0, len( ratings ) )
+    (indices, years) = zip( *year_changes )
+    plt.xticks( indices, years, rotation = 'vertical', size = 'small' )
+    plt.savefig( "out/%s.png" % id )
     print "Done."
 
 def get_tournament_history( id ):
