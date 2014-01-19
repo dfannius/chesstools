@@ -8,11 +8,14 @@
 # + Print date marks on x axis
 # + Put name in png files
 # - Reread pickled data when outdated
-#   - Read pickled data
-#   - Read game page starting from last year in pickled data
-#   - If there are new games:
-#     - Reread tournament pages until we have gotten all new xtbls
-#     - Repickle
+#   + Read pickled data
+#   + Read game page starting from last year in pickled data
+#   + If there are new games:
+#     + Reread tournament pages until we have gotten all new xtbls
+#     + Repickle
+# - Combine parse_results and parse_new_results
+# - Use sets rather than lists to check for new results
+# - Mode that takes a single tournament's stats on the command and returns a perf rating
 # - Legend
 # - Window size as command-line parameter?
 
@@ -73,6 +76,8 @@ class TournamentResult():
     def __init__( self, xtbl, rating ):
         self.xtbl = xtbl
         self.rating = rating
+    def __eq__( self, rhs ):
+        return self.xtbl == rhs.xtbl
     def __repr__( self ):
         return "%s %d" % (self.xtbl, self.rating)
     def year( self ):
@@ -84,6 +89,8 @@ class Result():
         self.result = result
         self.xtbl = xtbl
         self.rd = rd
+    def __eq__( self, rhs ):
+        return self.xtbl == rhs.xtbl and self.rd == rhs.rd
     def __repr__( self ):
         return "%d %s (%s:%d)" % (self.opp_rating, self.result, self.xtbl, self.rd)
     def val( self ):
@@ -258,7 +265,22 @@ def parse_results( id ):
         results.extend( year_stats( id, y ) )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
     print "Getting tournament history..."
-    tnmt_results = get_tournament_history( id )
+    tnmt_results = get_tournament_history( id, [] )
+    return (results, tnmt_results)
+
+# id -> [Result] -> [TournamentResult] -> ([Result], [TournamentResult])
+def parse_new_results( id, results, tnmt_results ):
+    max_saved_year = max( r.year() for r in results )
+    print "Getting new yearly stats starting from %s..." % max_saved_year
+    new_results = []
+    for y in range( max_saved_year, 2015 ):
+        for new_result in year_stats( id, y ):
+            if new_result not in results:
+                print new_result
+                results.append( new_result )
+    results.sort( key=attrgetter( "xtbl", "rd" ) )
+    print "Getting new tournament history..."
+    tnmt_results = get_tournament_history( id, tnmt_results )
     return (results, tnmt_results)
 
 # id -> ([Result], [TournamentResult])
@@ -268,11 +290,14 @@ def read_results( id ):
         f = open( pf, "rb" )
         results = pickle.load( f )
         tnmt_results = pickle.load( f )
+        (results, tnmt_results) = parse_new_results( id, results, tnmt_results )
+        f.close()
     except IOError:
         (results, tnmt_results) = parse_results( id )
-        f = open( pf, "wb" )
-        pickle.dump( results, f )
-        pickle.dump( tnmt_results, f )
+    f = open( pf, "wb" )
+    pickle.dump( results, f )
+    pickle.dump( tnmt_results, f )
+    f.close()
     return (results, tnmt_results)
 
 def year_change_indices( results ):
@@ -317,11 +342,11 @@ def run_by_window( id ):
 
     print "Done."
 
-def get_tournament_history( id ):
+# Id -> [TournamentResult] -> [TournamentResult]
+def get_tournament_history( id, tnmt_results ):
     u = tournament_stats_page_url( id )
     tnmt_u = urllib2.urlopen( u )
     tnmt_pages = []
-    results = []
     for l in tnmt_u:
         m = tnmt_hst_re.search( l )
         if m:
@@ -332,8 +357,14 @@ def get_tournament_history( id ):
         u = urllib2.urlopen( page )
         parser = TournamentResultsParser()
         parser.feed( u.read() )
-        results.extend( parser.results )
-    return results
+        saw_new_result = False
+        for new_result in parser.results:
+            if new_result not in tnmt_results:
+                saw_new_result = True
+                tnmt_results.append( new_result )
+        if not saw_new_result:
+            break
+    return tnmt_results
     
 def run():
     run_by_window( sys.argv[1] )
