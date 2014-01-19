@@ -13,12 +13,14 @@
 #   + If there are new games:
 #     + Reread tournament pages until we have gotten all new xtbls
 #     + Repickle
+# + Mode that takes a single tournament's stats on the command and returns a perf rating
+# - Stop reading new tnmt_results the instant we see an old xtbl?
 # - Combine parse_results and parse_new_results
 # - Use sets rather than lists to check for new results
-# - Mode that takes a single tournament's stats on the command and returns a perf rating
 # - Legend
 # - Window size as command-line parameter?
 
+import argparse
 import cPickle as pickle
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,20 +43,16 @@ def rating_diff_to_expected_value( d ):
 def expected_value_total( rating, opp_ratings ):
     return sum( rating_diff_to_expected_value( rating - r ) for r in opp_ratings )
 
-# What rating would I have to have so that the total number of points
-# scored in results is exactly what was expected?
-def accurate_perf_rating( results ):
+def accurate_perf_rating_raw( opp_ratings, score ):
     lo = None
     hi = None
     test = 0.0
     test_total = 0.0
-    actual_total = sum( result_to_value[ r.result ] for r in results )
-    opp_ratings = [ r.opp_rating for r in results ]
     iterations = 0
 
-    while abs( test_total - actual_total ) > 0.001 and iterations < 50:
+    while abs( test_total - score ) > 0.001 and iterations < 50:
         if hi is None and lo is None:
-            test = sum( r.val() for r in results ) / len( results )
+            test = sum( opp_ratings ) / len( opp_ratings )
         elif hi is None:
             test = lo + 100.0
         elif lo is None:
@@ -62,12 +60,19 @@ def accurate_perf_rating( results ):
         else:
             test = (lo + hi) / 2.0
         test_total = expected_value_total( test, opp_ratings )
-        if (test_total < actual_total):
+        if (test_total < score):
             lo = test
         else:
             hi = test
         iterations += 1
     return test
+
+# What rating would I have to have so that the total number of points
+# scored in results is exactly what was expected?
+def accurate_perf_rating( results ):
+    actual_total = sum( result_to_value[ r.result ] for r in results )
+    opp_ratings = [ r.opp_rating for r in results ]
+    return accurate_perf_rating_raw( opp_ratings, actual_total )
 
 def xtbl_to_str( xtbl ):
     return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
@@ -369,4 +374,15 @@ def get_tournament_history( id, tnmt_results ):
 def run():
     run_by_window( sys.argv[1] )
 
-run()
+parser = argparse.ArgumentParser( description="Analyze USCF tournament performance results." )
+parser.add_argument( "-i", "--id", help="USCF ID" )
+parser.add_argument( "-t", "--tnmt", help="Tournament results", nargs="*" )
+global_options = parser.parse_args()
+
+if global_options.id:
+    run_by_window( global_options.id )
+elif global_options.tnmt:
+    ratings = global_options.tnmt[:-1]
+    score = global_options.tnmt[-1]
+    print int( round( accurate_perf_rating_raw( [int( r ) for r in ratings],
+                                                float( score ) ) ) )
