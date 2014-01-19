@@ -6,8 +6,15 @@
 # + Put files in a separate directory
 # + Print name
 # + Print date marks on x axis
-# - Window size as command-line parameter
+# + Put name in png files
+# - Reread pickled data when outdated
+#   - Read pickled data
+#   - Read game page starting from last year in pickled data
+#   - If there are new games:
+#     - Reread tournament pages until we have gotten all new xtbls
+#     - Repickle
 # - Legend
+# - Window size as command-line parameter?
 
 import cPickle as pickle
 import matplotlib.pyplot as plt
@@ -222,36 +229,39 @@ def name_from_id( id ):
     for l in u:
         m = name_re.search( l )
         if m:
-            return m.group( 1 )
-    return None
+            return m.group( 1 ).replace( "&nbsp;", " " )
+    return ""
 
 def run_by_year( id ):
     print "Year  Fast  Acc %s" % (name_from_id( id ))
-    for y in range( 1994, 1995 ):
+    for y in range( 1994, 2015 ):
         parse_year_stats( id, y )
 
-def xtbls_to_ratings( xtbls ):
+# Return a list of (i, x) pairs, where i = last game # with crosstable x
+def xtbl_indices( xtbls ):
     mapping = {}
     for (i, x) in enumerate( xtbls ):
         mapping[x] = i          # overwrite earlier indices with later ones
     vals = []
     for (k, v) in mapping.items():
-        vals.append( (v, k ) )
+        vals.append( (v, k) )
     return sorted( vals )
 
 def pickle_file( id ):
-    return "out/%s.pickle" % id
+    return "pickle/%s.pickle" % id
 
+# id -> ([Result], [TournamentResult])
 def parse_results( id ):
     print "Getting yearly stats..."
     results = []
-    for y in range( 1994, 2014 ):
+    for y in range( 1994, 2015 ):
         results.extend( year_stats( id, y ) )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
     print "Getting tournament history..."
     tnmt_results = get_tournament_history( id )
     return (results, tnmt_results)
 
+# id -> ([Result], [TournamentResult])
 def read_results( id ):
     pf = pickle_file( id )
     try:
@@ -276,53 +286,50 @@ def year_change_indices( results ):
     return ans
 
 def run_by_window( id ):
-    window_size = 20
+    window_size = 32
 
     (results, tnmt_results) = read_results( id )
-    tnmt_map = {}
-    for r in tnmt_results:
-        tnmt_map[r.xtbl] = r.rating
+    tnmt_map = { r.xtbl: r.rating for r in tnmt_results } # xtbl -> rating
 
-    ratings = []
-    tnmt_ratings = []
-    xtbls = []
+    ratings = []                # recent perf rating after each game
+    xtbls = []                  # crosstable id of each game
+    if len( results ) < window_size:
+        print "Not enough games yet."
+        return
+
     print "Generating graph..."
-    for x in range( window_size, len( results ) ):
+    for x in range( window_size, len( results ) + 1):
         begin = max( 0, x - window_size )
-        r = results[begin:x]
-        naive_perf = sum( r.val() for r in r ) / len( r )
-        accurate_perf = accurate_perf_rating( r )
-        ratings.append( accurate_perf )
-        xtbls.append( r[-1].xtbl )
-#        print "%s: %4d %4d %s %d" % (xtbl_to_str( r[-1].xtbl ),
-#                                     round( naive_perf ),
-#                                     round( accurate_perf ),
-#                                     r[-1].result,
-#                                     r[-1].opp_rating)
+        ratings.append( accurate_perf_rating( results[begin:x] ) )
+        xtbls.append( results[x-1].xtbl )
+    (tnmt_indices, tnmt_xtbls) = zip( *xtbl_indices( xtbls ) )
+    tnmt_ratings = [tnmt_map[x] for x in tnmt_xtbls]
+    name = name_from_id( id )
 
-    tnmt_ratings = xtbls_to_ratings( xtbls )
-    tnmt_indices = [i for (i,x) in tnmt_ratings]
-    tnmt_ratings = [tnmt_map[x] for (i,x) in tnmt_ratings]
     plt.plot( range( len( ratings ) ), ratings )
     plt.plot( tnmt_indices, tnmt_ratings )
-    plt.title( name_from_id( id ) + "\n" )
-    year_changes = year_change_indices( results )
+    plt.title( name + "\n" )
+    year_changes = year_change_indices( results[window_size-1:] )
     plt.xlim( 0, len( ratings ) )
     (indices, years) = zip( *year_changes )
     plt.xticks( indices, years, rotation = 'vertical', size = 'small' )
-    plt.savefig( "out/%s.png" % id )
+    plt.savefig( "out/%s %s.png" % (id, name) )
+
     print "Done."
 
 def get_tournament_history( id ):
-    tnmt_u = urllib2.urlopen( tournament_stats_page_url( id ) )
+    u = tournament_stats_page_url( id )
+    tnmt_u = urllib2.urlopen( u )
     tnmt_pages = []
     results = []
     for l in tnmt_u:
         m = tnmt_hst_re.search( l )
         if m:
-            tnmt_pages.append( m.group( 0 ) )
+            tnmt_pages.append( "http://main.uschess.org/assets/msa_joomla/" + m.group( 0 ) )
+    if len( tnmt_pages ) == 0:
+        tnmt_pages.append( u )  # Just a single page
     for page in tnmt_pages:
-        u = urllib2.urlopen( "http://main.uschess.org/assets/msa_joomla/" + page )
+        u = urllib2.urlopen( page )
         parser = TournamentResultsParser()
         parser.feed( u.read() )
         results.extend( parser.results )
