@@ -14,14 +14,15 @@
 #     + Reread tournament pages until we have gotten all new xtbls
 #     + Repickle
 # + Mode that takes a single tournament's stats on the command and returns a perf rating
+# + Combine parse_results and parse_new_results
 # - Stop reading new tnmt_results the instant we see an old xtbl?
-# - Combine parse_results and parse_new_results
 # - Use sets rather than lists to check for new results
 # - Legend
 # - Window size as command-line parameter?
 
 import argparse
 import cPickle as pickle
+import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import re
@@ -33,6 +34,8 @@ from operator import attrgetter
 result_to_value = { "L": 0.0, "S": 0.0,
                     "D": 0.5, "R": 0.5,
                     "W": 1.0, "N": 1.0  }
+
+NEXT_YEAR = datetime.datetime.now().year + 1
 
 # I'm rated d points above the other player; what's my EV?
 def rating_diff_to_expected_value( d ):
@@ -49,6 +52,11 @@ def accurate_perf_rating_raw( opp_ratings, score ):
     test = 0.0
     test_total = 0.0
     iterations = 0
+
+    if score == 0:
+        return min( opp_ratings ) - 400
+    elif score == len( opp_ratings ):
+        return max( opp_ratings ) + 400
 
     while abs( test_total - score ) > 0.001 and iterations < 50:
         if hi is None and lo is None:
@@ -246,7 +254,7 @@ def name_from_id( id ):
 
 def run_by_year( id ):
     print "Year  Fast  Acc %s" % (name_from_id( id ))
-    for y in range( 1994, 2015 ):
+    for y in range( 1994, NEXT_YEAR ):
         parse_year_stats( id, y )
 
 # Return a list of (i, x) pairs, where i = last game # with crosstable x
@@ -262,26 +270,14 @@ def xtbl_indices( xtbls ):
 def pickle_file( id ):
     return "pickle/%s.pickle" % id
 
-# id -> ([Result], [TournamentResult])
-def parse_results( id ):
-    print "Getting yearly stats..."
-    results = []
-    for y in range( 1994, 2015 ):
-        results.extend( year_stats( id, y ) )
-    results.sort( key=attrgetter( "xtbl", "rd" ) )
-    print "Getting tournament history..."
-    tnmt_results = get_tournament_history( id, [] )
-    return (results, tnmt_results)
-
 # id -> [Result] -> [TournamentResult] -> ([Result], [TournamentResult])
-def parse_new_results( id, results, tnmt_results ):
-    max_saved_year = max( r.year() for r in results )
+def parse_results( id, results, tnmt_results ):
+    max_saved_year = max( r.year() for r in results ) if results else 1994
     print "Getting new yearly stats starting from %s..." % max_saved_year
     new_results = []
-    for y in range( max_saved_year, 2015 ):
+    for y in range( max_saved_year, NEXT_YEAR ):
         for new_result in year_stats( id, y ):
             if new_result not in results:
-                print new_result
                 results.append( new_result )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
     print "Getting new tournament history..."
@@ -290,15 +286,20 @@ def parse_new_results( id, results, tnmt_results ):
 
 # id -> ([Result], [TournamentResult])
 def read_results( id ):
-    pf = pickle_file( id )
+    results = []
+    tnmt_results = []
+
     try:
+        pf = pickle_file( id )
         f = open( pf, "rb" )
         results = pickle.load( f )
         tnmt_results = pickle.load( f )
-        (results, tnmt_results) = parse_new_results( id, results, tnmt_results )
         f.close()
     except IOError:
-        (results, tnmt_results) = parse_results( id )
+        pass
+
+    (results, tnmt_results) = parse_results( id, results, tnmt_results )
+
     f = open( pf, "wb" )
     pickle.dump( results, f )
     pickle.dump( tnmt_results, f )
