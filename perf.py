@@ -15,6 +15,9 @@
 #     + Repickle
 # + Mode that takes a single tournament's stats on the command and returns a perf rating
 # + Combine parse_results and parse_new_results
+# + Argument for initial year to graph
+# - Why does the graph end just before the right edge?
+# - Option to not read more data
 # - Stop reading new tnmt_results the instant we see an old xtbl?
 # - Use sets rather than lists to check for new results
 # - Legend
@@ -337,10 +340,25 @@ def run_by_window( id ):
     tnmt_ratings = [tnmt_map[x] for x in tnmt_xtbls]
     name = name_from_id( id )
 
+    # Chop off results before the initial year
+    initial_year = global_options.year or 0
+    print len( results ), "results,", len( ratings), "ratings"
+    active_results = results[window_size:]
+    first_idx = next( i for i,v in enumerate( active_results ) if v.year() >= initial_year )
+    print "first_idx =", first_idx, ":", active_results[first_idx], active_results[first_idx].year()
+    ratings = ratings[first_idx:]
+    active_results = active_results[first_idx:]
+    print "tnmt_indices was", tnmt_indices
+    print "tnmt_ratings was", tnmt_ratings
+    tnmt_indices = [i - first_idx for i in tnmt_indices if i >= first_idx]
+    tnmt_ratings = tnmt_ratings[len(tnmt_ratings) - len(tnmt_indices):]
+    print "tnmt_indices now", tnmt_indices
+    print "tnmt_ratings now", tnmt_ratings
+
     plt.plot( range( len( ratings ) ), ratings )
     plt.plot( tnmt_indices, tnmt_ratings )
     plt.title( name + "\n" )
-    year_changes = year_change_indices( results[window_size-1:] )
+    year_changes = year_change_indices( active_results )
     plt.xlim( 0, len( ratings ) )
     (indices, years) = zip( *year_changes )
     plt.xticks( indices, years, rotation = 'vertical', size = 'small' )
@@ -377,6 +395,7 @@ def run():
 
 parser = argparse.ArgumentParser( description="Analyze USCF tournament performance results." )
 parser.add_argument( "-i", "--id", help="USCF ID" )
+parser.add_argument( "-y", "--year", help="Initial year", type=int )
 parser.add_argument( "-t", "--tnmt", help="Tournament results", nargs="*" )
 global_options = parser.parse_args()
 
