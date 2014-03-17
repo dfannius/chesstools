@@ -342,18 +342,12 @@ def run_by_window( id ):
 
     # Chop off results before the initial year
     initial_year = global_options.year or 0
-    print len( results ), "results,", len( ratings), "ratings"
     active_results = results[window_size:]
     first_idx = next( i for i,v in enumerate( active_results ) if v.year() >= initial_year )
-    print "first_idx =", first_idx, ":", active_results[first_idx], active_results[first_idx].year()
     ratings = ratings[first_idx:]
     active_results = active_results[first_idx:]
-    print "tnmt_indices was", tnmt_indices
-    print "tnmt_ratings was", tnmt_ratings
     tnmt_indices = [i - first_idx for i in tnmt_indices if i >= first_idx]
     tnmt_ratings = tnmt_ratings[len(tnmt_ratings) - len(tnmt_indices):]
-    print "tnmt_indices now", tnmt_indices
-    print "tnmt_ratings now", tnmt_ratings
 
     plt.plot( range( len( ratings ) ), ratings )
     plt.plot( tnmt_indices, tnmt_ratings )
