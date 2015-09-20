@@ -29,7 +29,7 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import re
-import urllib2
+import requests
 import sys
 from HTMLParser import HTMLParser
 from operator import attrgetter
@@ -231,9 +231,9 @@ def tournament_stats_page_url( id ):
     return "http://main.uschess.org/assets/msa_joomla/MbrDtlTnmtHst.php?%s" % id
 
 def year_stats( id, year ):
-    u = urllib2.urlopen( year_stats_page_url( id, year ) )
+    r = requests.get( year_stats_page_url( id, year ) )
     parser = YearResultsParser()
-    parser.feed( u.read() )
+    parser.feed( r.text )
     return parser.results
 
 def parse_year_stats( id, year ):
@@ -248,8 +248,9 @@ def parse_year_stats( id, year ):
 
 name_re = re.compile( "<b>\d+: ([^<]+)" )
 def name_from_id( id ):
-    u = urllib2.urlopen( "http://main.uschess.org/assets/msa_joomla/MbrDtlMain.php?%s" % id )
-    for l in u:
+    url = "http://main.uschess.org/assets/msa_joomla/MbrDtlMain.php?%s" % id
+    r = requests.get( url )
+    for l in r.text.split("\n"):
         m = name_re.search( l )
         if m:
             return m.group( 1 ).replace( "&nbsp;", " " )
@@ -363,18 +364,18 @@ def run_by_window( id ):
 # Id -> [TournamentResult] -> [TournamentResult]
 def get_tournament_history( id, tnmt_results ):
     u = tournament_stats_page_url( id )
-    tnmt_u = urllib2.urlopen( u )
+    tnmt_r = requests.get( u )
     tnmt_pages = []
-    for l in tnmt_u:
+    for l in tnmt_r.text.split("\n"):
         m = tnmt_hst_re.search( l )
         if m:
             tnmt_pages.append( "http://main.uschess.org/assets/msa_joomla/" + m.group( 0 ) )
     if len( tnmt_pages ) == 0:
         tnmt_pages.append( u )  # Just a single page
     for page in tnmt_pages:
-        u = urllib2.urlopen( page )
+        r = requests.get( page )
         parser = TournamentResultsParser()
-        parser.feed( u.read() )
+        parser.feed( r.text )
         saw_new_result = False
         for new_result in parser.results:
             if new_result not in tnmt_results:
