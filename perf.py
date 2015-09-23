@@ -26,6 +26,7 @@
 import argparse
 import cPickle as pickle
 import datetime
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import re
@@ -48,6 +49,10 @@ def rating_diff_to_expected_value( d ):
 # facing opponents with the given opponent ratings?
 def expected_value_total( rating, opp_ratings ):
     return sum( rating_diff_to_expected_value( rating - r ) for r in opp_ratings )
+
+def expected_value_total_scaled( rating, opp_ratings, scales ):
+    return sum( scales[i] * rating_diff_to_expected_value( rating - r )
+                for (i,r) in enumerate( opp_ratings ) )
 
 def accurate_perf_rating_raw( opp_ratings, score ):
     lo = None
@@ -78,12 +83,47 @@ def accurate_perf_rating_raw( opp_ratings, score ):
         iterations += 1
     return test
 
+def accurate_perf_rating_raw_scaled( opp_ratings, score, distr ):
+    lo = None
+    hi = None
+    test = 0.0
+    test_total = 0.0
+    iterations = 0
+
+    if score == 0:
+        return min( opp_ratings ) - 400
+    elif score == len( opp_ratings ):
+        return max( opp_ratings ) + 400
+
+    while abs( test_total - score ) > 0.001 and iterations < 50:
+        if hi is None and lo is None:
+            test = sum( opp_ratings ) / len( opp_ratings )
+        elif hi is None:
+            test = lo + 100.0
+        elif lo is None:
+            test = hi - 100.0
+        else:
+            test = (lo + hi) / 2.0
+        test_total = expected_value_total_scaled( test, opp_ratings, distr )
+        if (test_total < score):
+            lo = test
+        else:
+            hi = test
+        iterations += 1
+    return test
+
 # What rating would I have to have so that the total number of points
 # scored in results is exactly what was expected?
 def accurate_perf_rating( results ):
     actual_total = sum( result_to_value[ r.result ] for r in results )
     opp_ratings = [ r.opp_rating for r in results ]
     return accurate_perf_rating_raw( opp_ratings, actual_total )
+
+def accurate_perf_rating_scaled( results, distr ):
+    actual_total = sum( distr[i] * result_to_value[ r.result ]
+                        for (i,r) in enumerate( results ) )
+    opp_ratings = [ r.opp_rating for r in results ]
+    return accurate_perf_rating_raw_scaled( opp_ratings, actual_total, distr )
 
 def xtbl_to_str( xtbl ):
     return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
@@ -320,6 +360,12 @@ def year_change_indices( results ):
         cur_year = y
     return ans
 
+PI = 3.14159265
+
+def normal_distribution( std_dev, length ):
+    mean = (length - 1.0) / 2
+    return [ math.exp( -(i - mean)**2 / (2*std_dev**2)) for i in range( length ) ]
+
 def run_by_window( id ):
     window_size = 32
 
@@ -335,7 +381,8 @@ def run_by_window( id ):
     print "Generating graph..."
     for x in range( window_size, len( results ) + 1):
         begin = max( 0, x - window_size )
-        ratings.append( accurate_perf_rating( results[begin:x] ) )
+        distr = normal_distribution( window_size / 6, x - begin )
+        ratings.append( accurate_perf_rating_scaled( results[begin:x], distr ) )
         xtbls.append( results[x-1].xtbl )
     (tnmt_indices, tnmt_xtbls) = zip( *xtbl_indices( xtbls ) )
     tnmt_ratings = [tnmt_map[x] for x in tnmt_xtbls]
