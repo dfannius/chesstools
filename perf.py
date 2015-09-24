@@ -362,9 +362,8 @@ def year_change_indices( results ):
 
 PI = 3.14159265
 
-def normal_distribution( std_dev, length ):
-    mean = (length - 1.0) / 2
-    return [ math.exp( -(i - mean)**2 / (2*std_dev**2)) for i in range( length ) ]
+def normal_distribution( std_dev, length, center ):
+    return [ math.exp( - float(i - center)**2 / (2*std_dev**2)) for i in range( length ) ]
 
 def run_by_window( id ):
     window_size = 32
@@ -379,10 +378,11 @@ def run_by_window( id ):
         return
 
     print "Generating graph..."
-    for x in range( window_size, len( results ) + 1):
+    for x in range( 0, len( results ) + 1):
         begin = max( 0, x - window_size )
-        distr = normal_distribution( window_size / 6, x - begin )
-        ratings.append( accurate_perf_rating_scaled( results[begin:x], distr ) )
+        end = min( len( results ), x + window_size )
+        distr = normal_distribution( 10, end - begin, x - begin )
+        ratings.append( accurate_perf_rating_scaled( results[begin:end], distr ) )
         xtbls.append( results[x-1].xtbl )
     (tnmt_indices, tnmt_xtbls) = zip( *xtbl_indices( xtbls ) )
     tnmt_ratings = [tnmt_map[x] for x in tnmt_xtbls]
@@ -390,7 +390,7 @@ def run_by_window( id ):
 
     # Chop off results before the initial year
     initial_year = global_options.year or 0
-    active_results = results[window_size:]
+    active_results = results
     first_idx = next( i for i,v in enumerate( active_results ) if v.year() >= initial_year )
     ratings = ratings[first_idx:]
     active_results = active_results[first_idx:]
