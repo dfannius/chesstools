@@ -397,8 +397,8 @@ def run_by_window( id ):
     tnmt_indices = [i - first_idx for i in tnmt_indices if i >= first_idx]
     tnmt_ratings = tnmt_ratings[len(tnmt_ratings) - len(tnmt_indices):]
 
+    plt.plot( tnmt_indices, tnmt_ratings, color="#b0b0b0" )
     plt.plot( range( len( ratings ) ), ratings )
-    plt.plot( tnmt_indices, tnmt_ratings )
     plt.title( name + "\n" )
     year_changes = year_change_indices( active_results )
     plt.xlim( 0, len( ratings ) )
