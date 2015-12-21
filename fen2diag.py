@@ -2,17 +2,19 @@ import argparse
 import chessdiag
 import filecmp
 import os.path
-import win32clipboard
-import win32con
+import pyperclip
 
-def clipboard_contents():
-    win32clipboard.OpenClipboard()
-    text = win32clipboard.GetClipboardData( win32con.CF_TEXT )
-    win32clipboard.CloseClipboard()
-    null_idx = text.find("\0")  # Some apps return garbage after the null
-    if null_idx != -1:
-        text = text[:null_idx]
-    return text
+# import win32clipboard
+# import win32con
+
+# def clipboard_contents():
+#     win32clipboard.OpenClipboard()
+#     text = win32clipboard.GetClipboardData( win32con.CF_TEXT )
+#     win32clipboard.CloseClipboard()
+#     null_idx = text.find("\0")  # Some apps return garbage after the null
+#     if null_idx != -1:
+#         text = text[:null_idx]
+#     return text
 
 parser = argparse.ArgumentParser( description="Output a chessboard graphic corresponding to "
                                   "the FEN string currently occupying the clipboard." )
@@ -36,7 +38,7 @@ parser.add_argument( "-o",
                      action="store_true" )
 global_options = parser.parse_args()
 
-str = clipboard_contents()
+str = pyperclip.paste()
 print "Using %s" % str
 out_img = chessdiag.fen_to_image( str, global_options )
                     
