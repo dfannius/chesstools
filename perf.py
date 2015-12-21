@@ -35,10 +35,12 @@ import sys
 from HTMLParser import HTMLParser
 from operator import attrgetter
 
+# Map from web page result code to number of points
 result_to_value = { "L": 0.0, "S": 0.0,
                     "D": 0.5, "R": 0.5,
                     "W": 1.0, "N": 1.0  }
 
+# The first year we don't need to look for results from
 NEXT_YEAR = datetime.datetime.now().year + 1
 
 # I'm rated d points above the other player; what's my EV?
@@ -50,67 +52,41 @@ def rating_diff_to_expected_value( d ):
 def expected_value_total( rating, opp_ratings ):
     return sum( rating_diff_to_expected_value( rating - r ) for r in opp_ratings )
 
-def expected_value_total_scaled( rating, opp_ratings, scales ):
-    return sum( scales[i] * rating_diff_to_expected_value( rating - r )
+# Like expected_value_total() but with each game weighted by a value in
+# `weights`
+def expected_value_total_weighted( rating, opp_ratings, weights ):
+    return sum( weights[i] * rating_diff_to_expected_value( rating - r )
                 for (i,r) in enumerate( opp_ratings ) )
 
+# What rating would result in a total score of `score` against
+# opponents rated by `opp_ratings`, where the corresponding games are
+# weighted by `weights`?
+def accurate_perf_rating_raw_weighted( opp_ratings, score, weights ):
+    if score == 0:
+        return min( opp_ratings ) - 400
+    elif score == len( opp_ratings ):
+        return max( opp_ratings ) + 400
+    
+    # Start by guessing our rating is the average of our opponents'
+    test_rating = sum( opp_ratings ) / len( opp_ratings )
+    iterations = 0
+    
+    # Use Newton's method
+    while iterations < 50:
+        eps = 1
+        test_score = expected_value_total_weighted( test_rating, opp_ratings, weights )
+        if abs( test_score - score ) < 0.001:
+            break
+        test_score_2 = expected_value_total_weighted( test_rating+eps, opp_ratings, weights )
+        slope = float( test_score_2 - test_score ) / eps
+        test_rating -= (test_score - score) / slope
+        iterations += 1
+        
+    return test_rating
+
+# Same but each game is of equal weight
 def accurate_perf_rating_raw( opp_ratings, score ):
-    lo = None
-    hi = None
-    test = 0.0
-    test_total = 0.0
-    iterations = 0
-
-    if score == 0:
-        return min( opp_ratings ) - 400
-    elif score == len( opp_ratings ):
-        return max( opp_ratings ) + 400
-
-    while abs( test_total - score ) > 0.001 and iterations < 50:
-        if hi is None and lo is None:
-            test = sum( opp_ratings ) / len( opp_ratings )
-        elif hi is None:
-            test = lo + 100.0
-        elif lo is None:
-            test = hi - 100.0
-        else:
-            test = (lo + hi) / 2.0
-        test_total = expected_value_total( test, opp_ratings )
-        if (test_total < score):
-            lo = test
-        else:
-            hi = test
-        iterations += 1
-    return test
-
-def accurate_perf_rating_raw_scaled( opp_ratings, score, distr ):
-    lo = None
-    hi = None
-    test = 0.0
-    test_total = 0.0
-    iterations = 0
-
-    if score == 0:
-        return min( opp_ratings ) - 400
-    elif score == len( opp_ratings ):
-        return max( opp_ratings ) + 400
-
-    while abs( test_total - score ) > 0.001 and iterations < 50:
-        if hi is None and lo is None:
-            test = sum( opp_ratings ) / len( opp_ratings )
-        elif hi is None:
-            test = lo + 100.0
-        elif lo is None:
-            test = hi - 100.0
-        else:
-            test = (lo + hi) / 2.0
-        test_total = expected_value_total_scaled( test, opp_ratings, distr )
-        if (test_total < score):
-            lo = test
-        else:
-            hi = test
-        iterations += 1
-    return test
+    return accurate_perf_rating_raw_weighted( opp_ratings, score, [1 for x in opp_ratings] )
 
 # What rating would I have to have so that the total number of points
 # scored in results is exactly what was expected?
@@ -119,11 +95,12 @@ def accurate_perf_rating( results ):
     opp_ratings = [ r.opp_rating for r in results ]
     return accurate_perf_rating_raw( opp_ratings, actual_total )
 
-def accurate_perf_rating_scaled( results, distr ):
-    actual_total = sum( distr[i] * result_to_value[ r.result ]
+# Same but the scores are to be weighted by `weights`
+def accurate_perf_rating_weighted( results, weights ):
+    actual_total = sum( weights[i] * result_to_value[ r.result ]
                         for (i,r) in enumerate( results ) )
     opp_ratings = [ r.opp_rating for r in results ]
-    return accurate_perf_rating_raw_scaled( opp_ratings, actual_total, distr )
+    return accurate_perf_rating_raw_weighted( opp_ratings, actual_total, weights )
 
 def xtbl_to_str( xtbl ):
     return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
@@ -363,10 +340,11 @@ def year_change_indices( results ):
 PI = 3.14159265
 
 def normal_distribution( std_dev, length, center ):
-    return [ math.exp( - float(i - center)**2 / (2*std_dev**2)) for i in range( length ) ]
+    return [ math.exp( - float(i - center)**2 / (2*std_dev**2))
+             for i in range( length ) ]
 
 def run_by_window( id ):
-    window_size = 32
+    window_size = 60
 
     (results, tnmt_results) = read_results( id )
     tnmt_map = { r.xtbl: r.rating for r in tnmt_results } # xtbl -> rating
@@ -381,8 +359,8 @@ def run_by_window( id ):
     for x in range( 0, len( results ) + 1):
         begin = max( 0, x - window_size )
         end = min( len( results ), x + window_size )
-        distr = normal_distribution( 10, end - begin, x - begin )
-        ratings.append( accurate_perf_rating_scaled( results[begin:end], distr ) )
+        distr = normal_distribution( 20, end - begin, x - begin )
+        ratings.append( accurate_perf_rating_weighted( results[begin:end], distr ) )
         xtbls.append( results[x-1].xtbl )
     (tnmt_indices, tnmt_xtbls) = zip( *xtbl_indices( xtbls ) )
     tnmt_ratings = [tnmt_map[x] for x in tnmt_xtbls]
