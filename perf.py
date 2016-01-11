@@ -35,6 +35,12 @@ import sys
 from HTMLParser import HTMLParser
 from operator import attrgetter
 
+tournament_rating_re = re.compile( r"=>" )
+rating_re = re.compile( r"=>\s+(\d+)", re.MULTILINE )
+xtbl_re = re.compile( r"XtblMain.php\?([\d]+)" )
+tnmt_hst_re = re.compile( r"MbrDtlTnmtHst.php\?[\d]+\.[\d]+" )
+name_re = re.compile( "<b>\d+: ([^<]+)" )
+
 # Map from web page result code to number of points
 result_to_value = { "L": 0.0, "S": 0.0,
                     "D": 0.5, "R": 0.5,
@@ -105,10 +111,11 @@ def accurate_perf_rating_weighted( results, weights ):
 def xtbl_to_str( xtbl ):
     return "%s-%s-%s" % (xtbl[0:4], xtbl[4:6], xtbl[6:8] )
 
+# A single tournament
 class TournamentResult():
     def __init__( self, xtbl, rating ):
-        self.xtbl = xtbl
-        self.rating = rating
+        self.xtbl = xtbl        # URL of the crosstable
+        self.rating = rating    # Rating after the tournament
     def __eq__( self, rhs ):
         return self.xtbl == rhs.xtbl
     def __repr__( self ):
@@ -116,37 +123,37 @@ class TournamentResult():
     def year( self ):
         return int( self.xtbl[0:4] )
 
+# A single game
 class Result():
     def __init__( self, opp_rating, result, xtbl, rd ):
-        self.opp_rating = opp_rating
-        self.result = result
-        self.xtbl = xtbl
-        self.rd = rd
+        self.opp_rating = opp_rating # Opponent rating
+        self.result = result         # Code for result (see result_to_value)
+        self.xtbl = xtbl             # URL of crosstable
+        self.rd = rd                 # Round number
     def __eq__( self, rhs ):
         return self.xtbl == rhs.xtbl and self.rd == rhs.rd
     def __repr__( self ):
         return "%d %s (%s:%d)" % (self.opp_rating, self.result, self.xtbl, self.rd)
+    # Naive "performance rating" for this single game
     def val( self ):
         return self.opp_rating + (result_to_value[ self.result ] - 0.5) * 800
     def year( self ):
         return int( self.xtbl[0:4] )
 
+# Returns the value associated with `key` in a list of (key, value) tuples,
+# or None
 def alist_find( alist, key ):
     for (k,v) in alist:
         if k == key: return v
     return None
 
-tournament_rating_re = re.compile( r"=>" )
-rating_re = re.compile( r"=>\s+(\d+)", re.MULTILINE )
-xtbl_re = re.compile( r"XtblMain.php\?([\d]+)" )
-tnmt_hst_re = re.compile( r"MbrDtlTnmtHst.php\?[\d]+\.[\d]+" )
-
+# Base class to automatically keep track of some stuff
 class TableParser( HTMLParser ):
     def __init__( self ):
         HTMLParser.__init__( self )
-        self.tag_stack = []
-        self.cur_col = 0
-        self.in_td = 0
+        self.tag_stack = []     # What tags are we nested in
+        self.cur_col = 0        # Column of current table
+        self.in_td = 0          # Are we in a <td> tag
 
     def handle_starttag( self, tag, attrs ):
         self.tag_stack.append( tag )
@@ -167,13 +174,13 @@ class TableParser( HTMLParser ):
         else:
             return self.tag_stack[-1]
 
+# Reads a page of tournament results and stuffs the results into self.results
 class TournamentResultsParser( TableParser ):
     def __init__( self ):
         TableParser.__init__( self )
-        self.reading_data = False
-        self.xtbl = None
-        self.rating = 0
-        self.results = []
+        self.xtbl = None        # URL of current crosstable
+        self.rating = 0         # Rating after current tournament
+        self.results = []       # [TournamentResult]
 
     def handle_starttag( self, tag, attrs ):
         TableParser.handle_starttag( self, tag, attrs )
@@ -197,16 +204,16 @@ class TournamentResultsParser( TableParser ):
                 m = re.match( "\d+", data )
                 self.rating = int( m.group( 0 ) )
 
+# Reads a page of results for a given year and stuffs the results into self.results
 class YearResultsParser( TableParser ):
     def __init__( self ):
         TableParser.__init__( self )
-        self.rating = 0
-        self.results = []
-        self.reading_data = False
-        self.xtbl = None
-        self.rd = 0
-        self.rating = 0
-        self.result = None
+        self.rating = 0           # Rating for this game
+        self.results = []         # [Result]
+        self.reading_data = False # Have we gotten to the actual data
+        self.xtbl = None          # URL of crosstable
+        self.rd = 0               # Round of this game
+        self.result = None        # code for game result
 
     def handle_starttag( self, tag, attrs ):
         TableParser.handle_starttag( self, tag, attrs )
@@ -241,18 +248,32 @@ class YearResultsParser( TableParser ):
                 elif self.cur_col == 7:
                     self.result = data[0]
 
+# Return the URL providing the stats for the player with USCF ID `id`
+# in the given year
 def year_stats_page_url( id, year ):
     return "http://main.uschess.org/datapage/gamestats.php?memid=%s&ptype=Y&rs=R&dkey=%d&drill=Y" % (id, year )
 
+# Return the URL corresponding to the player with USCF ID `id`
 def tournament_stats_page_url( id ):
     return "http://main.uschess.org/assets/msa_joomla/MbrDtlTnmtHst.php?%s" % id
 
+# id -> year -> [Result]
 def year_stats( id, year ):
     r = requests.get( year_stats_page_url( id, year ) )
     parser = YearResultsParser()
     parser.feed( r.text )
     return parser.results
 
+def name_from_id( id ):
+    url = "http://main.uschess.org/assets/msa_joomla/MbrDtlMain.php?%s" % id
+    r = requests.get( url )
+    for l in r.text.split("\n"):
+        m = name_re.search( l )
+        if m:
+            return m.group( 1 ).replace( "&nbsp;", " " )
+    return ""
+
+# Display one year's stats textually
 def parse_year_stats( id, year ):
     results = year_stats( id, year )
     if len( results ) > 0:
@@ -263,16 +284,7 @@ def parse_year_stats( id, year ):
                                            round( accurate_perf ),
                                            len( results ))
 
-name_re = re.compile( "<b>\d+: ([^<]+)" )
-def name_from_id( id ):
-    url = "http://main.uschess.org/assets/msa_joomla/MbrDtlMain.php?%s" % id
-    r = requests.get( url )
-    for l in r.text.split("\n"):
-        m = name_re.search( l )
-        if m:
-            return m.group( 1 ).replace( "&nbsp;", " " )
-    return ""
-
+# Display all years' stats textually
 def run_by_year( id ):
     print "Year  Fast  Acc %s" % (name_from_id( id ))
     for y in range( 1994, NEXT_YEAR ):
@@ -288,11 +300,43 @@ def xtbl_indices( xtbls ):
         vals.append( (v, k) )
     return sorted( vals )
 
+# Filename of pickle file corresponding to `id`
 def pickle_file( id ):
     return "pickle/%s.pickle" % id
 
+# Id -> [TournamentResult]
+def get_tournament_history( id, tnmt_results ):
+    u = tournament_stats_page_url( id )
+    tnmt_r = requests.get( u )
+    tnmt_pages = []             # URLs of pages listing tournaments
+    for l in tnmt_r.text.split("\n"):
+        m = tnmt_hst_re.search( l )
+        if m:
+            tnmt_pages.append( "http://main.uschess.org/assets/msa_joomla/" + m.group( 0 ) )
+    if len( tnmt_pages ) == 0:
+        tnmt_pages.append( u )  # All tournaments were on the first page
+    for page in tnmt_pages:
+        r = requests.get( page )
+        parser = TournamentResultsParser()
+        parser.feed( r.text )
+        saw_new_result = False
+        for new_result in parser.results:
+            # It's possible to see a tournament twice if it was dual-rated
+            if new_result not in tnmt_results:
+                saw_new_result = True
+                tnmt_results.append( new_result )
+        if not saw_new_result:
+            break
+    return tnmt_results
+    
 # id -> [Result] -> [TournamentResult] -> ([Result], [TournamentResult])
+#
+# `results` and `tnmt_results` are the individual game results and
+# tournament results we already know about. Grab whatever data we don't
+# have yet and return the updated lists.
 def parse_results( id, results, tnmt_results ):
+    # We should never have to look at an earlier year than we already have
+    # some data for
     max_saved_year = max( r.year() for r in results ) if results else 1994
     print "Getting new yearly stats starting from %s..." % max_saved_year
     new_results = []
@@ -310,6 +354,7 @@ def read_results( id ):
     results = []
     tnmt_results = []
 
+    # Read pickled data if present
     try:
         pf = pickle_file( id )
         f = open( pf, "rb" )
@@ -344,7 +389,7 @@ def normal_distribution( std_dev, length, center ):
              for i in range( length ) ]
 
 def run_by_window( id ):
-    window_size = 60
+    window_size = 60            # how many games to look at at once
 
     (results, tnmt_results) = read_results( id )
     tnmt_map = { r.xtbl: r.rating for r in tnmt_results } # xtbl -> rating
@@ -386,30 +431,6 @@ def run_by_window( id ):
 
     print "Done."
 
-# Id -> [TournamentResult] -> [TournamentResult]
-def get_tournament_history( id, tnmt_results ):
-    u = tournament_stats_page_url( id )
-    tnmt_r = requests.get( u )
-    tnmt_pages = []
-    for l in tnmt_r.text.split("\n"):
-        m = tnmt_hst_re.search( l )
-        if m:
-            tnmt_pages.append( "http://main.uschess.org/assets/msa_joomla/" + m.group( 0 ) )
-    if len( tnmt_pages ) == 0:
-        tnmt_pages.append( u )  # Just a single page
-    for page in tnmt_pages:
-        r = requests.get( page )
-        parser = TournamentResultsParser()
-        parser.feed( r.text )
-        saw_new_result = False
-        for new_result in parser.results:
-            if new_result not in tnmt_results:
-                saw_new_result = True
-                tnmt_results.append( new_result )
-        if not saw_new_result:
-            break
-    return tnmt_results
-    
 def run():
     run_by_window( sys.argv[1] )
 
