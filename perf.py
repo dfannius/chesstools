@@ -29,6 +29,7 @@ import datetime
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import re
 import requests
 import sys
@@ -427,7 +428,11 @@ def run_by_window( id ):
     plt.xlim( 0, len( ratings ) )
     (indices, years) = zip( *year_changes )
     plt.xticks( indices, years, rotation = 'vertical', size = 'small' )
-    plt.savefig( "out/%s %s.png" % (id, name) )
+    out_name = "out/%s %s.png" % (id, name)
+    plt.savefig( out_name )
+
+    if global_options.open:
+        os.system( 'open "%s"' % out_name )
 
     print "Done."
 
@@ -438,6 +443,7 @@ parser = argparse.ArgumentParser( description="Analyze USCF tournament performan
 parser.add_argument( "-i", "--id", help="USCF ID" )
 parser.add_argument( "-y", "--year", help="Initial year", type=int )
 parser.add_argument( "-t", "--tnmt", help="Tournament results", nargs="*" )
+parser.add_argument( "-o", "--open", help="Open graph after computation", action="store_true" )
 global_options = parser.parse_args()
 
 if global_options.id:
