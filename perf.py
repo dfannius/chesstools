@@ -24,7 +24,7 @@
 # - Window size as command-line parameter?
 
 import argparse
-import cPickle as pickle
+import pickle
 import datetime
 import math
 import matplotlib.pyplot as plt
@@ -33,8 +33,10 @@ import os
 import re
 import requests
 import sys
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 from operator import attrgetter
+
+plt.style.use("seaborn")
 
 tournament_rating_re = re.compile( r"=>" )
 rating_re = re.compile( r"=>\s+(\d+)", re.MULTILINE )
@@ -280,14 +282,14 @@ def parse_year_stats( id, year ):
     if len( results ) > 0:
         naive_perf = sum( r.val() for r in results ) / len( results )
         accurate_perf = accurate_perf_rating( results )
-        print "%d: %4d %4d (%3d games)" % (year,
-                                           round( naive_perf ),
-                                           round( accurate_perf ),
-                                           len( results ))
+        print( "%d: %4d %4d (%3d games)" % (year,
+                                            round( naive_perf ),
+                                            round( accurate_perf ),
+                                            len( results )) )
 
 # Display all years' stats textually
 def run_by_year( id ):
-    print "Year  Fast  Acc %s" % (name_from_id( id ))
+    print( "Year  Fast  Acc %s" % (name_from_id( id )) )
     for y in range( 1994, NEXT_YEAR ):
         parse_year_stats( id, y )
 
@@ -339,14 +341,14 @@ def parse_results( id, results, tnmt_results ):
     # We should never have to look at an earlier year than we already have
     # some data for
     max_saved_year = max( r.year() for r in results ) if results else 1994
-    print "Getting new yearly stats starting from %s..." % max_saved_year
+    print( "Getting new yearly stats starting from %s..." % max_saved_year )
     new_results = []
     for y in range( max_saved_year, NEXT_YEAR ):
         for new_result in year_stats( id, y ):
             if new_result not in results:
                 results.append( new_result )
     results.sort( key=attrgetter( "xtbl", "rd" ) )
-    print "Getting new tournament history..."
+    print( "Getting new tournament history..." )
     tnmt_results = get_tournament_history( id, tnmt_results )
     return (results, tnmt_results)
 
@@ -398,10 +400,10 @@ def run_by_window( id ):
     ratings = []                # recent perf rating after each game
     xtbls = []                  # crosstable id of each game
     if len( results ) < window_size:
-        print "Not enough games yet."
+        print( "Not enough games yet." )
         return
 
-    print "Generating graph..."
+    print( "Generating graph..." )
     for x in range( 0, len( results ) + 1):
         begin = max( 0, x - window_size )
         end = min( len( results ), x + window_size )
@@ -428,13 +430,13 @@ def run_by_window( id ):
     plt.xlim( 0, len( ratings ) )
     (indices, years) = zip( *year_changes )
     plt.xticks( indices, years, rotation = 'vertical', size = 'small' )
-    out_name = "out/%s %s.png" % (id, name)
+    out_name = "out/%s %s.pdf" % (id, name)
     plt.savefig( out_name )
 
     if global_options.open:
         os.system( 'open "%s"' % out_name )
 
-    print "Done."
+    print( "Done." )
 
 def run():
     run_by_window( sys.argv[1] )
@@ -451,5 +453,5 @@ if global_options.id:
 elif global_options.tnmt:
     ratings = global_options.tnmt[:-1]
     score = global_options.tnmt[-1]
-    print int( round( accurate_perf_rating_raw( [int( r ) for r in ratings],
-                                                float( score ) ) ) )
+    print( int( round( accurate_perf_rating_raw( [int( r ) for r in ratings],
+                                                 float( score ) ) ) ) )
