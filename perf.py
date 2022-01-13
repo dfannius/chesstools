@@ -184,6 +184,7 @@ class TournamentResultsParser( TableParser ):
         self.xtbl = None        # URL of current crosstable
         self.rating = 0         # Rating after current tournament
         self.results = []       # [TournamentResult]
+        self.any_results = False # True if any tournaments, even blitz
 
     def handle_starttag( self, tag, attrs ):
         TableParser.handle_starttag( self, tag, attrs )
@@ -193,6 +194,7 @@ class TournamentResultsParser( TableParser ):
                 m = xtbl_re.search( xtbl_link )
                 if m:
                     self.xtbl = m.group( 1 )
+                    self.any_results = True
 
     def handle_endtag( self, tag ):
         TableParser.handle_endtag( self, tag )
@@ -328,7 +330,7 @@ def get_tournament_history( id, tnmt_results ):
             if new_result not in tnmt_results:
                 saw_new_result = True
                 tnmt_results.append( new_result )
-        if not saw_new_result:
+        if not parser.any_results:
             break
     return tnmt_results
     
